@@ -1121,7 +1121,7 @@ unsigned int GCodes::LoadMoveBufferFromGCode(GCodeBuffer& gb, int moveType)
 						const HeightMap& heightMap = reprap.GetMove()->AccessBedProbeGrid();
 						if (heightMap.UsingHeightMap())
 						{
-							const unsigned int minSegments = heightMap.GetMinimumSegments(fabs(mappedMoveArg - moveBuffer.coords[mappedAxis]));
+							const unsigned int minSegments = heightMap.GetMinimumSegments(fabs(mappedMoveArg - moveBuffer.coords[mappedAxis]), mappedAxis);
 							if (minSegments > numSegments)
 							{
 								numSegments = minSegments;
@@ -1156,7 +1156,7 @@ unsigned int GCodes::LoadMoveBufferFromGCode(GCodeBuffer& gb, int moveType)
 					const HeightMap& heightMap = reprap.GetMove()->AccessBedProbeGrid();
 					if (heightMap.UsingHeightMap())
 					{
-						const unsigned int minSegments = reprap.GetMove()->AccessBedProbeGrid().GetMinimumSegments(fabs(moveArg - moveBuffer.coords[axis]));
+						const unsigned int minSegments = reprap.GetMove()->AccessBedProbeGrid().GetMinimumSegments(fabs(moveArg - moveBuffer.coords[axis]), axis);
 						if (minSegments > numSegments)
 						{
 							numSegments = minSegments;
@@ -2149,7 +2149,7 @@ bool GCodes::SetPrintZProbe(GCodeBuffer& gb, StringRef& reply)
 // Called when we see an M557 command with no P parameter
 bool GCodes::DefineGrid(GCodeBuffer& gb, StringRef &reply)
 {
-	bool seenX = false, seenY = false, seenR = false, seenS = false;
+	bool seenX = false, seenY = false, seenR = false, seenS = false, seenT = false;
 	float xValues[2];
 	float yValues[2];
 
@@ -2184,10 +2184,14 @@ bool GCodes::DefineGrid(GCodeBuffer& gb, StringRef &reply)
 
 	float radius = -1.0;
 	gb.TryGetFValue('R', radius, seenR);
-	float spacing = DefaultGridSpacing;
-	gb.TryGetFValue('S', spacing, seenS);
 
-	if (!seenX && !seenY && !seenR && !seenS)
+	float spacingX = DefaultGridSpacing;
+	gb.TryGetFValue('S', spacingX, seenS);
+
+	float spacingY = DefaultGridSpacing;
+	gb.TryGetFValue('T', spacingY, seenT);
+
+	if (!seenX && !seenY && !seenR && !seenS && !seenT)
 	{
 		// Just print the existing grid parameters
 		const GridDefinition& grid = reprap.GetMove()->AccessBedProbeGrid().GetGrid();
@@ -2221,7 +2225,7 @@ bool GCodes::DefineGrid(GCodeBuffer& gb, StringRef &reply)
 	{
 		if (radius > 0)
 		{
-			const float effectiveRadius = floor((radius - 0.1)/spacing) * spacing;
+			const float effectiveRadius = floor((radius - 0.1)/spacingX) * spacingX;
 			xValues[0] = yValues[0] = -effectiveRadius;
 			xValues[1] = yValues[1] = effectiveRadius + 0.1;
 		}
@@ -2231,7 +2235,8 @@ bool GCodes::DefineGrid(GCodeBuffer& gb, StringRef &reply)
 			return true;
 		}
 	}
-	GridDefinition newGrid(xValues, yValues, radius, spacing);		// create a new grid
+
+	GridDefinition newGrid(xValues, yValues, radius, spacingX, spacingY);		// create a new grid
 	if (newGrid.IsValid())
 	{
 		reprap.GetMove()->AccessBedProbeGrid().SetGrid(newGrid);

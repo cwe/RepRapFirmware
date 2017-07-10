@@ -11,20 +11,21 @@
 #include "Storage/FileStore.h"
 #include <cmath>
 
-const char *GridDefinition::HeightMapLabelLine = "xmin,xmax,ymin,ymax,radius,spacing,xnum,ynum";
+const char *GridDefinition::HeightMapLabelLine = "xmin,xmax,ymin,ymax,radius,spacingX,spacingY,xnum,ynum";
 
 // Initialise the grid to be invalid
 GridDefinition::GridDefinition()
-	: xMin(0.0), xMax(-1.0), yMin(0.0), yMax(-1.0), radius(-1.0), spacing(DefaultGridSpacing),
-	  numX(0), numY(0), recipSpacing(1.0/spacing), isValid(false)
+	: xMin(0.0), xMax(-1.0), yMin(0.0), yMax(-1.0), radius(-1.0), spacingX(DefaultGridSpacing), spacingY(DefaultGridSpacing),
+	  numX(0), numY(0), recipSpacingX(1.0/spacingX), recipSpacingY(1.0/spacingY), isValid(false)
 {
 }
 
-GridDefinition::GridDefinition(const float xRange[2], const float yRange[2], float pRadius, float pSpacing)
-	: xMin(xRange[0]), xMax(xRange[1]), yMin(yRange[0]), yMax(yRange[1]), radius(pRadius), spacing(pSpacing), recipSpacing(1.0/spacing)
+GridDefinition::GridDefinition(const float xRange[2], const float yRange[2], float pRadius, float pSpacingX, float pSpacingY)
+	: xMin(xRange[0]), xMax(xRange[1]), yMin(yRange[0]), yMax(yRange[1]), radius(pRadius), spacingX(pSpacingX), recipSpacingX(1.0/spacingX),
+	  spacingY(pSpacingY), recipSpacingY(1.0/spacingY)
 {
-	numX = (xMax - xMin >= MinRange && spacing >= MinSpacing) ? (uint32_t)((xMax - xMin) * recipSpacing) + 1 : 0;
-	numY = (yMax - yMin >= MinRange && spacing >= MinSpacing) ? (uint32_t)((yMax - yMin) * recipSpacing) + 1 : 0;
+	numX = (xMax - xMin >= MinRange && spacingX >= MinSpacing) ? (uint32_t)((xMax - xMin) * recipSpacingX) + 1 : 0;
+	numY = (yMax - yMin >= MinRange && spacingY >= MinSpacing) ? (uint32_t)((yMax - yMin) * recipSpacingY) + 1 : 0;
 	CheckValidity();
 }
 
@@ -37,12 +38,12 @@ void GridDefinition::CheckValidity()
 
 float GridDefinition::GetXCoordinate(unsigned int xIndex) const
 {
-	return xMin + (xIndex * spacing);
+	return xMin + (xIndex * spacingX);
 }
 
 float GridDefinition::GetYCoordinate(unsigned int yIndex) const
 {
-	return yMin + (yIndex * spacing);
+	return yMin + (yIndex * spacingY);
 }
 
 bool GridDefinition::IsInRadius(float x, float y) const
@@ -53,13 +54,13 @@ bool GridDefinition::IsInRadius(float x, float y) const
 // Append the grid parameters to the end of a string
 void GridDefinition::PrintParameters(StringRef& s) const
 {
-	s.catf("X%.1f:%.1f, Y%.1f:%.1f, radius %.1f, spacing %.1f, %d points", xMin, xMax, yMin, yMax, radius, spacing, NumPoints());
+	s.catf("X%.1f:%.1f, Y%.1f:%.1f, radius %.1f, spacing %.1f, %d points", xMin, xMax, yMin, yMax, radius, spacingX, spacingY, NumPoints());
 }
 
 // Write the parameter label line to a string
 void GridDefinition::WriteHeadingAndParameters(StringRef& s) const
 {
-	s.printf("%s\n%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%u,%u\n", HeightMapLabelLine, xMin, xMax, yMin, yMax, radius, spacing, numX, numY);
+	s.printf("%s\n%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%u,%u\n", HeightMapLabelLine, xMin, xMax, yMin, yMax, radius, spacingX, spacingY, numX, numY);
 }
 
 // Check the parameter label line returning true if correct
@@ -71,11 +72,12 @@ void GridDefinition::WriteHeadingAndParameters(StringRef& s) const
 // Read the grid parameters from a string returning true if success
 bool GridDefinition::ReadParameters(const StringRef& s)
 {
-	bool ok = (sscanf(s.Pointer(), "%f,%f,%f,%f,%f,%f,%lu,%lu", &xMin, &xMax, &yMin, &yMax, &radius, &spacing, &numX, &numY) == 8);
+	bool ok = (sscanf(s.Pointer(), "%f,%f,%f,%f,%f,%f,%f,%lu,%lu", &xMin, &xMax, &yMin, &yMax, &radius, &spacingX, &spacingY, &numX, &numY) == 8);
 	if (ok)
 	{
 		CheckValidity();
-		recipSpacing = 1.0 / spacing;
+		recipSpacingX = 1.0 / spacingX;
+		recipSpacingY = 1.0 / spacingY;
 	}
 	else
 	{
@@ -87,9 +89,13 @@ bool GridDefinition::ReadParameters(const StringRef& s)
 // Print what is wrong with the grid, appending it to the existing string
 void GridDefinition::PrintError(float originalXrange, float originalYrange, StringRef& r) const
 {
-	if (spacing < MinSpacing)
+	if (spacingX < MinSpacing)
 	{
-		r.cat("Spacing too small");
+		r.cat("X Spacing too small");
+	}
+	if (spacingY < MinSpacing)
+	{
+		r.cat("Y Spacing too small");
 	}
 	else if (numX == 0)
 	{
@@ -149,9 +155,15 @@ void HeightMap::SetGridHeight(size_t xIndex, size_t yIndex, float height)
 }
 
 // Return the minimum number of segments for a move by this X or Y amount
-unsigned int HeightMap::GetMinimumSegments(float distance) const
+unsigned int HeightMap::GetMinimumSegments(float distance, size_t axis) const
 {
-	return (distance > 0.0) ? (unsigned int)(distance * def.recipSpacing + 0.4) : 1;
+	if (axis == X_AXIS) {
+		return (distance > 0.0) ? (unsigned int)(distance * def.recipSpacingX + 0.4) : 1;
+	} else if (axis == Y_AXIS) {
+		return (distance > 0.0) ? (unsigned int)(distance * def.recipSpacingY + 0.4) : 1;
+	} else {
+		return 1;
+	}
 }
 
 // Save the grid to file returning true if an error occurred
@@ -337,8 +349,8 @@ float HeightMap::GetInterpolatedHeightError(float x, float y) const
 	}
 
 	// Last grid point
-	const float xLast = def.xMin + (def.numX-1)*def.spacing;
-	const float yLast = def.yMin + (def.numY-1)*def.spacing;
+	const float xLast = def.xMin + (def.numX-1)*def.spacingX;
+	const float yLast = def.yMin + (def.numY-1)*def.spacingY;
 
 	// Clamp to rectangle so InterpolateXY will always have valid parameters
 	const float fEPSILON = 0.01;
@@ -348,10 +360,10 @@ float HeightMap::GetInterpolatedHeightError(float x, float y) const
 	if (y > yLast -fEPSILON) { y = yLast -fEPSILON; }
 
 
-	const float xf = (x - def.xMin) * def.recipSpacing;
+	const float xf = (x - def.xMin) * def.recipSpacingX;
 	const float xFloor = floor(xf);
 	const int32_t xIndex = (int32_t)xFloor;
-	const float yf = (y - def.yMin) * def.recipSpacing;
+	const float yf = (y - def.yMin) * def.recipSpacingY;
 	const float yFloor = floor(yf);
 	const int32_t yIndex = (int32_t)yFloor;
 
@@ -387,8 +399,8 @@ void HeightMap::ExtrapolateMissing()
 			const uint32_t index = GetMapIndex(iX, iY);
 			if (IsHeightSet(index))
 			{
-				const float fX = (def.spacing * iX) + def.xMin;
-				const float fY = (def.spacing * iY) + def.yMin;
+				const float fX = (def.spacingX * iX) + def.xMin;
+				const float fY = (def.spacingY * iY) + def.yMin;
 				const float fZ = gridHeights[index];
 
 				n++;
@@ -411,8 +423,8 @@ void HeightMap::ExtrapolateMissing()
 			const uint32_t index = GetMapIndex(iX, iY);
 			if (IsHeightSet(index))
 			{
-				const float fX = (def.spacing * iX) + def.xMin;
-				const float fY = (def.spacing * iY) + def.yMin;
+				const float fX = (def.spacingX * iX) + def.xMin;
+				const float fY = (def.spacingY * iY) + def.yMin;
 				const float fZ = gridHeights[index];
 
 				const float rX = fX - centX;
@@ -454,8 +466,8 @@ void HeightMap::ExtrapolateMissing()
 			const uint32_t index = GetMapIndex(iX, iY);
 			if (!IsHeightSet(index))
 			{
-				const float fX = (def.spacing * iX) + def.xMin;
-				const float fY = (def.spacing * iY) + def.yMin;
+				const float fX = (def.spacingX * iX) + def.xMin;
+				const float fY = (def.spacingY * iY) + def.yMin;
 				const float fZ = (d - (a * fX + b * fY)) * invC;
 				gridHeights[index] = fZ;	// fill in Z but don't mark it as set so we can always differentiate between measured and extrapolated
 			}

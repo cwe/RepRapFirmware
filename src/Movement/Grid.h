@@ -19,7 +19,7 @@ public:
 	friend class HeightMap;
 
 	GridDefinition();
-	GridDefinition(const float xRange[2], const float yRange[2], float pRadius, float pSpacing);
+	GridDefinition(const float xRange[2], const float yRange[2], float pRadius, float pSpacingX, float pSpacingY);
 
 	uint32_t NumXpoints() const { return numX; }
 	uint32_t NumYpoints() const { return numY; }
@@ -47,11 +47,12 @@ private:
 	// Primary parameters
 	float xMin, xMax, yMin, yMax;									// The edges of the grid for G29 probing
 	float radius;													// The grid radius to probe
-	float spacing;													// The spacing of the grid probe points
+	float spacingX, spacingY;										// The spacing of the grid probe points
+
 
 	// Derived parameters
 	uint32_t numX, numY;
-	float recipSpacing;
+	float recipSpacingX, recipSpacingY;
 	bool isValid;
 
 };
@@ -74,7 +75,7 @@ public:
 
 	bool LoadFromFile(FileStore *f, StringRef& r);					// Load the grid from file returning true if an error occurred
 
-	unsigned int GetMinimumSegments(float distance) const;			// Return the minimum number of segments for a move by this X or Y amount
+	unsigned int GetMinimumSegments(float distance, size_t axis) const;			// Return the minimum number of segments for a move by this X or Y amount
 
 	void UseHeightMap(bool b);
 	bool UsingHeightMap() const { return useMap; }

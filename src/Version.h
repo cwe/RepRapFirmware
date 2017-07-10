@@ -9,7 +9,7 @@
 #define SRC_VERSION_H_
 
 #ifndef VERSION
-# define VERSION "1.18.2"
+# define VERSION "1.18.2.cwe"
 #endif
 
 #ifndef DATE
